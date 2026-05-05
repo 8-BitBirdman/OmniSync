@@ -12,10 +12,16 @@
   [![Telegram](https://img.shields.io/badge/Telegram-API-2CA5E0?logo=telegram&logoColor=white)](#)
 
   <p align="center">
-    <a href="#features">✨ Features</a> •
-    <a href="#how-it-works">⚙️ How it Works</a> •
-    <a href="#installation">🚀 Installation</a> •
-    <a href="#configuration">🔧 Configuration</a>
+    <a href="#-features">✨ Features</a> •
+    <a href="#%EF%B8%8F-how-it-works">⚙️ How it Works</a> •
+    <a href="#-installation--development">🚀 Installation</a> •
+    <a href="#-configuration">🔧 Configuration</a> •
+    <a href="#-screenshots">🖼️ Screenshots</a> •
+    <a href="#-license">📄 License</a>
+  </p>
+
+  <p align="center">
+    <a href="https://github.com/8-BitBirdman/OmniSync/releases/latest"><b>⬇️ Download Latest Release</b></a>
   </p>
 </div>
 
@@ -63,8 +69,8 @@ By acting as a real-time, cross-platform bridge, OmniSync watches your Google Dr
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/omnisync.git
-   cd omnisync/app
+   git clone https://github.com/8-BitBirdman/OmniSync.git
+   cd OmniSync/app
    ```
 
 2. **Install frontend dependencies:**
@@ -84,16 +90,57 @@ By acting as a real-time, cross-platform bridge, OmniSync watches your Google Dr
 
 ---
 
-## 🔧 Configuration (Google Drive API)
+## 🔧 Configuration
 
-To enable the real-time sync, you must provide your own Google OAuth credentials:
+OmniSync needs two sets of credentials: **Telegram** (mandatory) and **Google Drive** (optional, only for the real-time sync bridge).
+
+### Telegram API (`api_id` / `api_hash`)
+
+1. Visit [my.telegram.org](https://my.telegram.org) and log in with your phone number.
+2. Click **API development tools**.
+3. Fill out the form (any app name/short name works for personal use).
+4. Copy the generated **`api_id`** and **`api_hash`**.
+5. Paste them into OmniSync's first-run authentication wizard.
+
+> Credentials are stored locally and encrypted via `tauri-plugin-store`. They are never transmitted to any server other than Telegram's official MTProto datacenters.
+
+### Google Drive API (OAuth 2.0)
+
+To enable the real-time Drive → Telegram sync, provide your own Google OAuth credentials:
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com).
 2. Create a new project and enable the **Google Drive API**.
-3. Navigate to **APIs & Services > Credentials**.
+3. Navigate to **APIs & Services → Credentials**.
 4. Create an **OAuth Client ID** (Application Type: *Desktop App*).
 5. Add `http://127.0.0.1` as an authorized redirect URI.
 6. Copy the **Client ID** and **Client Secret** into the OmniSync connection wizard.
+
+---
+
+## 🖼️ Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/LoginScreen.png" width="380"/><br/><sub>Login</sub></td>
+    <td align="center"><img src="screenshots/AuthCodeScreen.png" width="380"/><br/><sub>2FA Code Entry</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/DashboardWithFiles.png" width="380"/><br/><sub>Dashboard</sub></td>
+    <td align="center"><img src="screenshots/DarkModeGrid.png" width="380"/><br/><sub>Dark Mode Grid</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/FolderListView.png" width="380"/><br/><sub>List View</sub></td>
+    <td align="center"><img src="screenshots/FolderCreation.png" width="380"/><br/><sub>Folder Creation</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/ImagePreview.png" width="380"/><br/><sub>Image Preview</sub></td>
+    <td align="center"><img src="screenshots/VideoPlayback.png" width="380"/><br/><sub>Video Playback</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/AudioPlayback.png" width="380"/><br/><sub>Audio Playback</sub></td>
+    <td align="center"><img src="screenshots/UploadExample.png" width="380"/><br/><sub>Upload Progress</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -103,6 +150,23 @@ OmniSync is a local-first application.
 - **No Telemetry:** We don't track your usage.
 - **Direct API Connections:** The app communicates *only* with `googleapis.com` and Telegram's official MTProto datacenters.
 - **Local Token Storage:** OAuth tokens and Telegram session data are encrypted and stored locally via `tauri-plugin-store`.
+
+---
+
+## 🤝 Contributing
+
+Issues, feature requests and PRs are welcome at [github.com/8-BitBirdman/OmniSync](https://github.com/8-BitBirdman/OmniSync).
+
+Before submitting a PR:
+- Run `npm run build` from `app/` to confirm the frontend type-checks.
+- Run `cargo clippy --all-targets -- -D warnings` from `app/src-tauri/` to confirm Rust lints pass.
+- Keep changes focused — one feature/fix per PR.
+
+---
+
+## 📄 License
+
+Released under the [MIT License](LICENSE). © 2026 Andi.
 
 ---
 

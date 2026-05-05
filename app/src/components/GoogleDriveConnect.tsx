@@ -72,7 +72,7 @@ export function GoogleDriveConnect({ onConnected, onSkip }: Props) {
                             {step === "intro" && (
                                 <motion.div key="intro" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                     <p className="text-sm text-telegram-subtext mb-4 leading-relaxed">
-                                        Antigravity Drive will watch your Google Drive and automatically mirror new and changed files
+                                        OmniSync will watch your Google Drive and automatically mirror new and changed files
                                         into your Telegram storage in near real-time.
                                     </p>
                                     <ul className="space-y-2 mb-6">
@@ -123,7 +123,7 @@ export function GoogleDriveConnect({ onConnected, onSkip }: Props) {
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="overflow-hidden text-xs text-telegram-subtext space-y-1 list-decimal list-inside pl-1"
                                             >
-                                                <li>Go to <a href="https://console.cloud.google.com" target="_blank" className="text-telegram-primary underline inline-flex items-center gap-0.5">console.cloud.google.com <ExternalLink className="w-3 h-3" /></a></li>
+                                                <li>Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-telegram-primary underline inline-flex items-center gap-0.5">console.cloud.google.com <ExternalLink className="w-3 h-3" /></a></li>
                                                 <li>Create a project → Enable the <strong>Google Drive API</strong></li>
                                                 <li>OAuth consent screen → External → Add your email as a test user</li>
                                                 <li>Credentials → Create → OAuth Client ID → <strong>Desktop app</strong></li>

@@ -31,6 +31,8 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
     const queryClient = useQueryClient();
 
 
+    const searchInputRef = useRef<HTMLInputElement | null>(null);
+
     const {
         store, folders, activeFolderId, setActiveFolderId, isSyncing, isConnected,
         handleLogout, handleSyncFolders, handleCreateFolder, handleFolderDelete
@@ -71,13 +73,17 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
     }, [store, viewMode]);
 
 
-    const { data: allFiles = [], isLoading, error } = useQuery({
+    const { data: allFiles = [], isLoading, error } = useQuery<TelegramFile[]>({
         queryKey: ['files', activeFolderId],
-        queryFn: () => invoke<any[]>('cmd_get_files', { folderId: activeFolderId }).then(res => res.map(f => ({
-            ...f,
-            sizeStr: formatBytes(f.size),
-            type: f.icon_type || (f.name.endsWith('/') ? 'folder' : 'file')
-        }))),
+        queryFn: () =>
+            invoke<Array<TelegramFile & { icon_type?: string }>>('cmd_get_files', { folderId: activeFolderId })
+                .then((res) =>
+                    res.map((f): TelegramFile => ({
+                        ...f,
+                        sizeStr: formatBytes(f.size),
+                        type: (f.icon_type || (f.name.endsWith('/') ? 'folder' : 'file')) as TelegramFile['type'],
+                    }))
+                ),
         enabled: !!store,
     });
 
@@ -122,10 +128,10 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
     }, []);
 
     const handleFocusSearch = useCallback(() => {
-        const searchInput = document.querySelector('input[placeholder="Search files..."]') as HTMLInputElement;
-        if (searchInput) {
-            searchInput.focus();
-            searchInput.select();
+        const input = searchInputRef.current;
+        if (input) {
+            input.focus();
+            input.select();
         }
     }, []);
 
@@ -179,7 +185,7 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
         }, 500);
 
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, handleGlobalSearch]);
 
 
 
@@ -295,7 +301,7 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
 
         if (activeFolderId === targetFolderId) return;
 
-        const fileId = internalDragRef.current || (dataTransferFileId ? parseInt(dataTransferFileId) : null);
+        const fileId = internalDragRef.current || (dataTransferFileId ? parseInt(dataTransferFileId, 10) : null);
 
         if (fileId) {
             try {
@@ -416,6 +422,7 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
                     setViewMode={setViewMode}
                     searchTerm={searchTerm}
                     onSearchChange={setSearchTerm}
+                    searchInputRef={searchInputRef}
                 />
                 {searchTerm.length > 2 && (
                     <div className="px-6 pt-4 pb-0">

@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.1.10] - 2026-05-05
+
+### Breaking
+
+- Renamed application bundle from `Antigravity Drive` (`com.antigravity.drive`) to `OmniSync` (`com.omnisync.app`). Existing installs will not auto-update — users must reinstall.
+
+### Features
+
+- Configurable streaming server: frontend now resolves the host/port via `cmd_get_stream_info` instead of a hard-coded `localhost:14200`. Fixes broken media + PDF playback when the port is in use.
+- Stricter `QueryClient` defaults: `retry: false`, `refetchOnWindowFocus: false`.
+
+### Fixes
+
+- **Backend**
+  - `BandwidthManager` deadlock when `add_up`/`add_down` triggered a save while the guard was still held. Save now snapshots stats and serializes outside the lock.
+  - Token refresh underflow on slow clocks (`saturating_add/sub`).
+  - `cmd_upload_file` no longer panics on non-UTF-8 temp paths.
+  - `cmd_logout` no longer panics if `app_data_dir()` fails.
+  - Removed dead 40-line `User::from_raw` block in `gdrive.rs`.
+  - Sync loop now uses exponential backoff (10s→300s) and exits after 30 consecutive failures, surfacing the failure to the UI.
+  - Streaming server bind error path made informative (`expect` with explanation).
+  - `cmd_create_folder` mock IDs now use `timestamp + AtomicU64` to prevent collisions.
+  - `search_global` `Messages` match is exhaustive (handles `ChannelMessages` / `NotModified`); duplicates removed via `let-else`.
+  - `cmd_upload_file` switched to `tokio::fs::metadata`; download loop switched to `tokio::fs::File` + `AsyncWriteExt::write_all` + `flush`.
+  - Preview cache pruning moved off the executor via `spawn_blocking`.
+
+- **Frontend**
+  - Fixed listener-registration race in `useFileUpload` / `useFileDownload` (`unlisten` correctly invoked when effect tears down before `listen()` resolves).
+  - `useTelegramConnection` no longer re-runs init on every parent re-render (parent callback read via ref).
+  - Replaced `Math.random().toString(36).substr(...)` IDs with `crypto.randomUUID()`.
+  - Replaced ad-hoc `as any[]` in `Dashboard` with proper typed query response.
+  - Replaced brittle `querySelector('input[placeholder=...]')` with a `ref` wired through `TopBar`.
+  - `useNetworkStatus` switched dynamic import to a static one.
+  - Removed stray `console.error` calls in `PdfViewer`.
+
+### Chore
+
+- Project rebrand: `package.json` (`name: omnisync`), `Cargo.toml` (`package.name = "omnisync"`), Tauri identifier, productName, window title, updater endpoint, OAuth success page text.
+- Added `engines.node >= 20.19.0` (required by Vite 7).
+- `npm audit fix`: 0 vulnerabilities (was 3 high + 1 moderate).
+- `.gitignore` hardened (`.env.*`, `*.session*`, `*.sqlite`, `bandwidth.json`).
+- New root `LICENSE` (MIT).
+- Rewrote root `README.md`; added `app/README.md` workspace dev guide.
+
+---
+
 ## [1.1.7] - 2026-05-01
 
 ### Feature
@@ -103,7 +149,7 @@
 
 ### First Stable Release
 
-Telegram Drive is now production-ready! This release focuses on performance, reliability, and user experience polish.
+OmniSync is now production-ready! This release focuses on performance, reliability, and user experience polish.
 
 ### ✨ New Features
 

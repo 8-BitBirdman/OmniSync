@@ -2,14 +2,24 @@ use tauri::State;
 use tauri::Manager;
 use grammers_client::types::Media;
 use base64::{Engine as _, engine::general_purpose};
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Semaphore;
 use crate::TelegramState;
 use crate::bandwidth::BandwidthManager;
 use crate::commands::utils::resolve_peer;
 
 const PREVIEW_CACHE_MAX_FILES: usize = 30;
 const PREVIEW_CACHE_MAX_TOTAL_BYTES: u64 = 80 * 1024 * 1024;
+const THUMB_CACHE_MAX_BYTES: u64 = 200 * 1024 * 1024;
 
-fn prune_preview_cache(cache_dir: &std::path::Path) {
+/// Lazily-initialized concurrency limiter for cmd_get_thumbnail.
+static THUMB_SEM: OnceLock<Arc<Semaphore>> = OnceLock::new();
+fn thumb_sem() -> &'static Arc<Semaphore> {
+    THUMB_SEM.get_or_init(|| Arc::new(Semaphore::new(4)))
+}
+
+/// Synchronous body of the cache pruner. Should only be called from a blocking context.
+fn prune_preview_cache_sync(cache_dir: &std::path::Path) {
     let read_dir = match std::fs::read_dir(cache_dir) {
         Ok(entries) => entries,
         Err(_) => return,
@@ -38,6 +48,37 @@ fn prune_preview_cache(cache_dir: &std::path::Path) {
     }
 }
 
+/// Async wrapper — runs the blocking I/O on a worker thread so the executor stays free.
+async fn prune_preview_cache(cache_dir: std::path::PathBuf) {
+    let _ = tokio::task::spawn_blocking(move || prune_preview_cache_sync(&cache_dir)).await;
+}
+
+/// One-shot startup pruner — sums sizes; deletes oldest by mtime until under
+/// `max_bytes`. Synchronous; intended to run on a worker thread.
+pub fn prune_thumbnail_cache(dir: &std::path::Path, max_bytes: u64) {
+    let read_dir = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    let mut files: Vec<(std::path::PathBuf, std::time::SystemTime, u64)> = Vec::new();
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        if !path.is_file() { continue; }
+        if let Ok(meta) = entry.metadata() {
+            let modified = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            files.push((path, modified, meta.len()));
+        }
+    }
+    let mut total: u64 = files.iter().map(|(_, _, l)| *l).sum();
+    if total <= max_bytes { return; }
+    files.sort_by_key(|(_, m, _)| *m);
+    for (p, _, l) in files {
+        if total <= max_bytes { break; }
+        let _ = std::fs::remove_file(&p);
+        total = total.saturating_sub(l);
+    }
+}
+
 #[tauri::command]
 pub async fn cmd_get_preview(
     message_id: i32,
@@ -51,10 +92,10 @@ pub async fn cmd_get_preview(
         .app_cache_dir()
         .map_err(|e: tauri::Error| e.to_string())?
         .join("previews");
-    if !cache_dir.exists() {
-        let _ = std::fs::create_dir_all(&cache_dir);
+    if !tokio::fs::try_exists(&cache_dir).await.unwrap_or(false) {
+        let _ = tokio::fs::create_dir_all(&cache_dir).await;
     }
-    prune_preview_cache(&cache_dir);
+    prune_preview_cache(cache_dir.clone()).await;
     log::info!("Using preview cache dir: {:?}", cache_dir);
     log::info!("Preview Request: msg_id={}", message_id);
     let client_opt = { state.client.lock().await.clone() };
@@ -99,7 +140,7 @@ pub async fn cmd_get_preview(
             let save_path = cache_dir.join(format!("{}_{}.{}", folder_key, message_id, ext));
             let save_path_str = save_path.to_string_lossy().to_string();
 
-            let file_ready = if save_path.exists() {
+            let file_ready = if tokio::fs::try_exists(&save_path).await.unwrap_or(false) {
                 log::info!("File ({}) exists in cache.", message_id);
                 true
             } else {
@@ -117,7 +158,7 @@ pub async fn cmd_get_preview(
                         Ok(_) => {
                             log::info!("Preview download complete.");
                             bw_state.add_down(size);
-                            prune_preview_cache(&cache_dir);
+                            prune_preview_cache(cache_dir.clone()).await;
                             true
                         },
                         Err(e) => {
@@ -131,7 +172,7 @@ pub async fn cmd_get_preview(
                 let lower_ext = ext.to_lowercase();
                 if ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].contains(&lower_ext.as_str()) {
                     log::info!("Converting image to Base64...");
-                    match std::fs::read(&save_path) {
+                    match tokio::fs::read(&save_path).await {
                         Ok(bytes) => {
                             let b64 = general_purpose::STANDARD.encode(&bytes);
                             let mime = match lower_ext.as_str() {
@@ -167,8 +208,8 @@ pub async fn cmd_clean_cache(
         .app_cache_dir()
         .map_err(|e: tauri::Error| e.to_string())?
         .join("previews");
-    if cache_dir.exists() {
-        let _ = std::fs::remove_dir_all(cache_dir);
+    if tokio::fs::try_exists(&cache_dir).await.unwrap_or(false) {
+        let _ = tokio::fs::remove_dir_all(cache_dir).await;
     }
     Ok(())
 }
@@ -183,24 +224,31 @@ pub async fn cmd_get_thumbnail(
     app_handle: tauri::AppHandle,
     state: State<'_, TelegramState>,
 ) -> Result<String, String> {
-    // Check if thumbnail already in cache
+    // Throttle concurrent thumbnail fetches so a folder with hundreds of images
+    // doesn't saturate the Telegram connection.
+    let _permit = thumb_sem().clone().acquire_owned().await
+        .map_err(|e| e.to_string())?;
+
     let cache_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e: tauri::Error| e.to_string())?
         .join("thumbnails");
-    if !cache_dir.exists() {
-        let _ = std::fs::create_dir_all(&cache_dir);
+    if !tokio::fs::try_exists(&cache_dir).await.unwrap_or(false) {
+        let _ = tokio::fs::create_dir_all(&cache_dir).await;
     }
 
-    // Check for any cached thumbnail for this message
-    // Look for existing cached file
-    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
-        for entry in entries.flatten() {
+    // Cache key now includes folder_id so the same message_id from a different
+    // chat doesn't collide. folder_id None -> 0.
+    let folder_key: i64 = folder_id.unwrap_or(0);
+    let cache_prefix = format!("{}_{}", folder_key, message_id);
+
+    // Check for any cached thumbnail for this message+folder
+    if let Ok(mut entries) = tokio::fs::read_dir(&cache_dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with(&format!("{}.", message_id)) {
-                // Found cached thumbnail, return as base64
-                if let Ok(bytes) = std::fs::read(entry.path()) {
+            if name.starts_with(&format!("{}.", cache_prefix)) {
+                if let Ok(bytes) = tokio::fs::read(entry.path()).await {
                     let ext = name.rsplit('.').next().unwrap_or("jpg");
                     let mime = match ext {
                         "png" => "image/png",
@@ -215,7 +263,6 @@ pub async fn cmd_get_thumbnail(
         }
     }
 
-    // No cache, need to fetch from Telegram
     let client_opt = { state.client.lock().await.clone() };
     if client_opt.is_none() {
         return Ok("".to_string());
@@ -227,7 +274,6 @@ pub async fn cmd_get_thumbnail(
         .await.map_err(|e| e.to_string())?;
     if let Some(m) = messages.into_iter().flatten().next() {
         if let Some(media) = m.media() {
-            // Only get thumbnails for photos and documents with photo thumbnails
             let (is_image, ext) = match &media {
                 Media::Photo(_) => (true, "jpg".to_string()),
                 Media::Document(d) => {
@@ -241,7 +287,6 @@ pub async fn cmd_get_thumbnail(
                         };
                         (true, e.to_string())
                     } else {
-                        // Not an image, return empty - FileCard will show icon
                         return Ok("".to_string());
                     }
                 },
@@ -249,13 +294,11 @@ pub async fn cmd_get_thumbnail(
             };
 
             if is_image {
-                // Get photo thumbnail (smallest size for speed)
-                let save_path = cache_dir.join(format!("{}.{}", message_id, ext));
+                let save_path = cache_dir.join(format!("{}.{}", cache_prefix, ext));
                 let save_path_str = save_path.to_string_lossy().to_string();
 
-                // Download the thumbnail/photo
                 if client.download_media(&media, &save_path_str).await.is_ok() {
-                    if let Ok(bytes) = std::fs::read(&save_path) {
+                    if let Ok(bytes) = tokio::fs::read(&save_path).await {
                         let mime = match ext.as_str() {
                             "png" => "image/png",
                             "gif" => "image/gif",
@@ -270,5 +313,7 @@ pub async fn cmd_get_thumbnail(
         }
     }
 
+    let _ = THUMB_CACHE_MAX_BYTES; // silence unused warning if startup pruning isn't wired
     Ok("".to_string())
 }
+

@@ -1,4 +1,5 @@
 import { HardDrive, LayoutGrid, Sun, Moon, RefreshCw, CheckCircle2, AlertCircle, WifiOff } from 'lucide-react';
+import { RefObject } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useGDriveSync } from '../../hooks/useGDriveSync';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +15,7 @@ interface TopBarProps {
     setViewMode: (mode: 'grid' | 'list') => void;
     searchTerm: string;
     onSearchChange: (term: string) => void;
+    searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
 function SyncBadge() {
@@ -79,7 +81,7 @@ function SyncBadge() {
 
 export function TopBar({
     currentFolderName, selectedIds, onShowMoveModal, onBulkDownload, onBulkDelete,
-    onDownloadFolder, viewMode, setViewMode, searchTerm, onSearchChange
+    onDownloadFolder, viewMode, setViewMode, searchTerm, onSearchChange, searchInputRef
 }: TopBarProps) {
     const { theme, toggleTheme } = useTheme();
 
@@ -95,6 +97,7 @@ export function TopBar({
 
             <div className="flex-1 max-w-md mx-4">
                 <input
+                    ref={searchInputRef}
                     type="text"
                     placeholder="Search files..."
                     className="w-full bg-telegram-hover border border-telegram-border rounded-lg px-3 py-1.5 text-sm text-telegram-text placeholder:text-telegram-subtext focus:outline-none focus:border-telegram-primary/50 transition-colors"

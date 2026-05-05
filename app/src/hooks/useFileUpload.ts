@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -22,13 +22,24 @@ export function useFileUpload(activeFolderId: number | null, store: Store | null
 
     // Listen for progress events from Rust
     useEffect(() => {
+        let cancelled = false;
         let unlisten: UnlistenFn | undefined;
         listen<ProgressPayload>('upload-progress', (event) => {
             setUploadQueue(q => q.map(i =>
                 i.id === event.payload.id ? { ...i, progress: event.payload.percent } : i
             ));
-        }).then(fn => { unlisten = fn; });
-        return () => { unlisten?.(); };
+        }).then(fn => {
+            // If we already unmounted before the listener registered, immediately tear it down.
+            if (cancelled) {
+                fn();
+            } else {
+                unlisten = fn;
+            }
+        });
+        return () => {
+            cancelled = true;
+            unlisten?.();
+        };
     }, []);
 
     useEffect(() => {
@@ -45,9 +56,15 @@ export function useFileUpload(activeFolderId: number | null, store: Store | null
         });
     }, [store, initialized]);
 
+    const lastPendingKeyRef = useRef<string>("");
     useEffect(() => {
         if (!store || !initialized) return;
         const pending = uploadQueue.filter(i => i.status === 'pending');
+        // Only hit disk when the *set of pending items* changes, not on every
+        // progress tick (which fires many times per second).
+        const key = pending.map(i => `${i.id}|${i.path}|${i.folderId}`).join('\n');
+        if (key === lastPendingKeyRef.current) return;
+        lastPendingKeyRef.current = key;
         store.set('uploadQueue', pending).then(() => store.save());
     }, [store, uploadQueue, initialized]);
 
@@ -57,9 +74,9 @@ export function useFileUpload(activeFolderId: number | null, store: Store | null
         if (nextItem) {
             processItem(nextItem);
         }
-    }, [uploadQueue, processing]);
+    }, [uploadQueue, processing, processItem]);
 
-    const processItem = async (item: QueueItem) => {
+    const processItem = useCallback(async (item: QueueItem) => {
         setProcessing(true);
         setUploadQueue(q => q.map(i => i.id === item.id ? { ...i, status: 'uploading', progress: 0 } : i));
         try {
@@ -81,7 +98,7 @@ export function useFileUpload(activeFolderId: number | null, store: Store | null
         } finally {
             setProcessing(false);
         }
-    };
+    }, [queryClient]);
 
     const handleManualUpload = async () => {
         try {
@@ -89,7 +106,7 @@ export function useFileUpload(activeFolderId: number | null, store: Store | null
             if (selected) {
                 const paths = Array.isArray(selected) ? selected : [selected];
                 const newItems: QueueItem[] = paths.map((path: string) => ({
-                    id: Math.random().toString(36).substr(2, 9),
+                    id: crypto.randomUUID(),
                     path,
                     folderId: activeFolderId,
                     status: 'pending'

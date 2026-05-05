@@ -15,15 +15,22 @@ interface MediaPlayerProps {
 }
 
 export function MediaPlayer({ file, onClose, onNext, onPrev, currentIndex, totalItems, activeFolderId }: MediaPlayerProps) {
-    const [streamToken, setStreamToken] = useState<string | null>(null);
+    const [streamInfo, setStreamInfo] = useState<{ token: string; baseUrl: string } | null>(null);
 
     useEffect(() => {
-        invoke<string>('cmd_get_stream_token').then(setStreamToken).catch(() => {});
+        let cancelled = false;
+        invoke<{ token: string; base_url: string }>('cmd_get_stream_info')
+            .then((info) => {
+                if (cancelled) return;
+                setStreamInfo({ token: info.token, baseUrl: info.base_url });
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
     }, []);
 
     const folderIdParam = activeFolderId !== null ? activeFolderId.toString() : 'home';
-    const streamUrl = streamToken
-        ? `http://localhost:14200/stream/${folderIdParam}/${file.id}?token=${streamToken}`
+    const streamUrl = streamInfo
+        ? `${streamInfo.baseUrl}/stream/${folderIdParam}/${file.id}?token=${streamInfo.token}`
         : null;
 
     const isVideo = isVideoFile(file.name);
@@ -114,7 +121,7 @@ export function MediaPlayer({ file, onClose, onNext, onPrev, currentIndex, total
                 <div className="mt-4 text-center">
                     <h3 className="text-lg font-medium text-white">{file.name}</h3>
                     <p className="text-sm text-white/50">
-                        Streaming from Antigravity Drive
+                        Streaming from OmniSync
                         {typeof currentIndex === 'number' && typeof totalItems === 'number' && totalItems > 0 && (
                             <span className="ml-2">• {currentIndex + 1}/{totalItems}</span>
                         )}

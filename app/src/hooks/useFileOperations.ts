@@ -1,8 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useCallback } from 'react';
 import { useConfirm } from '../context/ConfirmContext';
 import { TelegramFile } from '../types';
+
+const sanitizeFilename = (name: string): string => {
+    const cleaned = name.replace(/[\\/]/g, '_').replace(/^\.+/, '_').trim();
+    return cleaned.length > 0 ? cleaned.slice(0, 200) : 'file';
+};
 
 export function useFileOperations(
     activeFolderId: number | null,
@@ -46,9 +53,7 @@ export function useFileOperations(
 
     const handleDownload = async (id: number, name: string) => {
         try {
-            const savePath = await import('@tauri-apps/plugin-dialog').then(d => d.save({
-                defaultPath: name,
-            }));
+            const savePath = await save({ defaultPath: name });
             if (!savePath) return;
             toast.info(`Download started: ${name}`);
             await invoke('cmd_download_file', { messageId: id, savePath, folderId: activeFolderId });
@@ -61,22 +66,29 @@ export function useFileOperations(
     const handleBulkDownload = async () => {
         if (selectedIds.length === 0) return;
         try {
-            const dirPath = await import('@tauri-apps/plugin-dialog').then(d => d.open({
+            const dirPath = await open({
                 directory: true, multiple: false, title: "Select Download Destination"
-            }));
+            });
             if (!dirPath) return;
             let successCount = 0;
+            let failCount = 0;
             const targetFiles = displayedFiles.filter((f) => selectedIds.includes(f.id));
             toast.info(`Starting batch download of ${targetFiles.length} files...`);
 
             for (const file of targetFiles) {
-                const filePath = `${dirPath}/${file.name}`;
+                const filePath = `${dirPath}/${sanitizeFilename(file.name)}`;
                 try {
                     await invoke('cmd_download_file', { messageId: file.id, savePath: filePath, folderId: activeFolderId });
                     successCount++;
-                } catch (e) { }
+                } catch {
+                    failCount++;
+                }
             }
-            toast.success(`Downloaded ${successCount} files.`);
+            if (failCount > 0) {
+                toast.error(`Downloaded ${successCount}, failed ${failCount}.`);
+            } else {
+                toast.success(`Downloaded ${successCount} files.`);
+            }
             setSelectedIds([]);
         } catch (e) {
             toast.error(`Bulk download failed: ${e}`);
@@ -106,24 +118,39 @@ export function useFileOperations(
             return;
         }
         try {
-            const dirPath = await import('@tauri-apps/plugin-dialog').then(d => d.open({
+            const dirPath = await open({
                 directory: true, multiple: false, title: "Download Folder To..."
-            }));
+            });
             if (!dirPath) return;
             let successCount = 0;
+            let failCount = 0;
             toast.info(`Downloading folder contents (${displayedFiles.length} files)...`);
             for (const file of displayedFiles) {
-                const filePath = `${dirPath}/${file.name}`;
+                const filePath = `${dirPath}/${sanitizeFilename(file.name)}`;
                 try {
                     await invoke('cmd_download_file', { messageId: file.id, savePath: filePath, folderId: activeFolderId });
                     successCount++;
-                } catch (e) { }
+                } catch {
+                    failCount++;
+                }
             }
-            toast.success(`Folder Download Complete: ${successCount} files.`);
+            if (failCount > 0) {
+                toast.error(`Downloaded ${successCount}, failed ${failCount}.`);
+            } else {
+                toast.success(`Folder Download Complete: ${successCount} files.`);
+            }
         } catch (e) {
             toast.error("Error: " + e);
         }
     }
+
+    const handleGlobalSearch = useCallback(async (query: string) => {
+        try {
+            return await invoke<TelegramFile[]>('cmd_search_global', { query });
+        } catch {
+            return [];
+        }
+    }, []);
 
     return {
         handleDelete,
@@ -132,12 +159,6 @@ export function useFileOperations(
         handleBulkDownload,
         handleBulkMove,
         handleDownloadFolder,
-        handleGlobalSearch: async (query: string) => {
-            try {
-                return await invoke<TelegramFile[]>('cmd_search_global', { query });
-            } catch {
-                return [];
-            }
-        }
+        handleGlobalSearch,
     };
 }

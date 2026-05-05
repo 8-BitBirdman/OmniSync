@@ -31,7 +31,7 @@ pub async fn ensure_client_initialized(
     // CRITICAL: Shutdown existing runner before creating a new one
     // This prevents runner task accumulation which causes stack overflow
     let did_shutdown_old_runner = {
-        let mut guard = state.runner_shutdown.lock().unwrap();
+        let mut guard = state.runner_shutdown.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(shutdown_tx) = guard.take() {
             log::info!("Signaling old runner to shutdown...");
             let _ = shutdown_tx.send(());
@@ -80,7 +80,7 @@ pub async fn ensure_client_initialized(
     
     // Create shutdown channel for this runner
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    *state.runner_shutdown.lock().unwrap() = Some(shutdown_tx);
+    *state.runner_shutdown.lock().unwrap_or_else(|e| e.into_inner()) = Some(shutdown_tx);
     
     // Spawn the network runner with shutdown support
     let SenderPool { runner, .. } = pool;
@@ -110,6 +110,8 @@ pub async fn cmd_connect(
     // Store API ID for auto-reconnect
     *state.api_id.lock().await = Some(api_id);
     ensure_client_initialized(&app_handle, &state, api_id).await?;
+    // New session loaded — invalidate any prior stream URLs.
+    crate::commands::streaming::rotate_stream_token(&app_handle).await;
     Ok(true)
 }
 
@@ -166,12 +168,15 @@ pub async fn cmd_logout(
     
     // 1. Shutdown the network runner FIRST to prevent any operations
     {
-        let mut shutdown_guard = state.runner_shutdown.lock().unwrap();
+        let mut shutdown_guard = state.runner_shutdown.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(shutdown_tx) = shutdown_guard.take() {
             log::info!("Signaling runner shutdown for logout...");
             let _ = shutdown_tx.send(());
         }
     }
+
+    // Rotate the stream token so any leaked URLs are immediately invalid.
+    crate::commands::streaming::rotate_stream_token(&app_handle).await;
     
     // 2. Try to sign out from Telegram (if connected)
     let client_opt = { state.client.lock().await.clone() };
@@ -187,12 +192,15 @@ pub async fn cmd_logout(
     *state.api_id.lock().await = None;
     crate::commands::utils::clear_peer_cache(&state.peer_cache).await;
 
-    // 4. Remove Session File
-    let app_data_dir = app_handle.path().app_data_dir().unwrap();
-    let session_path = app_data_dir.join("telegram.session");
-    let _ = std::fs::remove_file(session_path);
-    let _ = std::fs::remove_file(app_data_dir.join("telegram.session-wal"));
-    let _ = std::fs::remove_file(app_data_dir.join("telegram.session-shm"));
+    // 4. Remove Session File (best-effort — never panic on logout)
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        let session_path = app_data_dir.join("telegram.session");
+        let _ = std::fs::remove_file(&session_path);
+        let _ = std::fs::remove_file(app_data_dir.join("telegram.session-wal"));
+        let _ = std::fs::remove_file(app_data_dir.join("telegram.session-shm"));
+    } else {
+        log::warn!("Could not resolve app_data_dir during logout; skipping session cleanup");
+    }
 
     log::info!("Logout complete. Runner count: {}", state.runner_count.load(Ordering::SeqCst));
     Ok(true)

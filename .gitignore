@@ -3,6 +3,8 @@ node_modules/
 dist/
 .DS_Store
 .env
+.env.*
+!.env.example
 
 # Rust
 /app/src-tauri/target/
@@ -18,3 +20,16 @@ CompiledApps/
 *.log
 Error.html
 **/LatestError.html
+
+# Local app data / leak protection (defense-in-depth)
+*.session
+*.session-wal
+*.session-shm
+*.sqlite
+bandwidth.json
+
+# Test artifacts
+test_upload.txt
+
+# TS incremental build info
+*.tsbuildinfo

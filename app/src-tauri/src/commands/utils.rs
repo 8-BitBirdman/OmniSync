@@ -17,7 +17,7 @@ pub async fn resolve_peer(
     peer_cache: &Arc<RwLock<HashMap<i64, Peer>>>,
 ) -> Result<Peer, String> {
     if let Some(fid) = folder_id {
-        // Fast path: check cache
+        // Fast path: check cache (read lock dropped before any await).
         {
             let cache = peer_cache.read().await;
             if let Some(peer) = cache.get(&fid) {
@@ -25,11 +25,11 @@ pub async fn resolve_peer(
             }
         }
 
-        // Slow path: scan dialogs and populate cache
+        // Slow path: scan dialogs without holding the cache lock across awaits.
         log::debug!("Peer cache miss for folder_id={}, scanning dialogs...", fid);
         let mut found: Option<Peer> = None;
+        let mut harvested: Vec<(i64, Peer)> = Vec::new();
         let mut dialogs = client.iter_dialogs();
-        let mut cache = peer_cache.write().await;
         while let Some(dialog) = dialogs.next().await.map_err(|e| e.to_string())? {
             let peer_id = match &dialog.peer {
                 Peer::Channel(c) => Some(c.raw.id),
@@ -37,11 +37,22 @@ pub async fn resolve_peer(
                 _ => None,
             };
             if let Some(id) = peer_id {
-                cache.insert(id, dialog.peer.clone());
-                if id == fid {
+                harvested.push((id, dialog.peer.clone()));
+                if id == fid && found.is_none() {
                     found = Some(dialog.peer.clone());
-                    // Don't break — keep scanning to warm the cache
+                    // Insert immediately so concurrent callers stop scanning.
+                    let mut cache = peer_cache.write().await;
+                    cache.insert(id, dialog.peer.clone());
+                    drop(cache);
                 }
+            }
+        }
+
+        // Bulk insert the rest after iteration completes.
+        if !harvested.is_empty() {
+            let mut cache = peer_cache.write().await;
+            for (id, peer) in harvested {
+                cache.entry(id).or_insert(peer);
             }
         }
 

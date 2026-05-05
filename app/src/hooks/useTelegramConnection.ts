@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,8 +20,16 @@ export function useTelegramConnection(onLogoutParent: () => void) {
 
     const networkIsOnline = useNetworkStatus();
 
+    // Always read the latest parent callback via a ref so the init effect doesn't
+    // re-run every render just because the parent passes a fresh arrow fn.
+    const onLogoutParentRef = useRef(onLogoutParent);
+    useEffect(() => { onLogoutParentRef.current = onLogoutParent; }, [onLogoutParent]);
+
 
     useEffect(() => {
+        // App.tsx already ran cmd_connect on cold start. Here we only need to
+        // load the store + persisted UI state (folders, last active folder).
+        let cancelled = false;
         const initStore = async () => {
             try {
                 let _store = await Store.load('config.json');
@@ -29,72 +37,34 @@ export function useTelegramConnection(onLogoutParent: () => void) {
                 if (!checkId) {
                     _store = await Store.load('settings.json');
                 }
+                if (cancelled) return;
                 setStore(_store);
 
                 const savedFolders = await _store.get<TelegramFolder[]>('folders');
-                if (savedFolders) setFolders(savedFolders);
-
+                if (!cancelled && savedFolders) setFolders(savedFolders);
 
                 const savedActiveFolderId = await _store.get<number | null>('activeFolderId');
-                if (savedActiveFolderId !== undefined) setActiveFolderId(savedActiveFolderId);
-
-                const apiIdStr = await _store.get<string>('api_id');
-                if (apiIdStr) {
-                    try {
-                        const apiId = parseInt(apiIdStr as string);
-                        await invoke('cmd_connect', { apiId });
-                        setIsConnected(true);
-                        queryClient.invalidateQueries({ queryKey: ['files'] });
-                    } catch {
-                        const shouldRetry = window.confirm("Failed to connect to Telegram. Retry?");
-                        if (shouldRetry) {
-                            window.location.reload();
-                        } else {
-                            if (_store) {
-                                await _store.delete('api_id');
-                                await _store.save();
-                            }
-                            onLogoutParent();
-                        }
-                    }
-                } else {
-                    onLogoutParent();
+                if (!cancelled && savedActiveFolderId !== undefined) {
+                    setActiveFolderId(savedActiveFolderId);
                 }
 
+                if (!cancelled) {
+                    queryClient.invalidateQueries({ queryKey: ['files'] });
+                }
             } catch {
-                // store not available
+                // store not available — non-fatal
             }
         };
         initStore();
-    }, [queryClient, onLogoutParent]);
+        return () => { cancelled = true; };
+        // queryClient is stable; confirm no longer needed here.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
 
     useEffect(() => {
         setIsConnected(networkIsOnline);
     }, [networkIsOnline]);
-
-
-    const isNetworkError = (error: string): boolean => {
-        const keywords = ['timeout', 'connection', 'network', 'socket', 'disconnected', 'EOF', 'ECONNREFUSED', 'overflow'];
-        return keywords.some(k => error.toLowerCase().includes(k.toLowerCase()));
-    };
-
-    const forceLogout = async () => {
-        setIsConnected(false);
-        try {
-            await invoke('cmd_clean_cache').catch(() => { });
-            if (store) {
-                await store.delete('api_id');
-                await store.delete('api_hash');
-                await store.delete('folders');
-                await store.save();
-            }
-        } catch {
-            // best effort cleanup
-        }
-        toast.error("Connection lost. Please log in again.");
-        onLogoutParent();
-    };
 
 
     const handleLogout = async () => {
@@ -107,6 +77,9 @@ export function useTelegramConnection(onLogoutParent: () => void) {
                 await store.delete('api_id');
                 await store.delete('api_hash');
                 await store.delete('folders');
+                await store.delete('activeFolderId');
+                await store.delete('uploadQueue');
+                await store.delete('downloadQueue');
                 await store.save();
             }
             onLogoutParent();
@@ -220,7 +193,5 @@ export function useTelegramConnection(onLogoutParent: () => void) {
         handleSyncFolders,
         handleCreateFolder,
         handleFolderDelete,
-        isNetworkError,
-        forceLogout
     };
 }

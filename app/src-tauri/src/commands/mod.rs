@@ -37,4 +37,5 @@ pub use gdrive::{
     cmd_gdrive_disconnect,
     cmd_gdrive_sync_status,
     cmd_gdrive_list_files,
+    cmd_gdrive_restore_tokens,
 };

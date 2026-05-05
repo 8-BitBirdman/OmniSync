@@ -24,27 +24,31 @@ function AuthThemeToggle() {
         </button>
     );
 }
+function BrowserNotice() {
+    return (
+        <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto p-8 text-center">
+            <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6">
+                <ShieldCheck className="w-10 h-10 text-red-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-4">Desktop App Required</h1>
+            <p className="text-gray-400 mb-6 leading-relaxed">
+                You are viewing the internal development server in a browser.
+                This application cannot function here because it requires access to the system backend (Rust).
+            </p>
+            <div className="p-4 bg-gray-800 rounded-xl border border-gray-700 text-sm text-gray-300">
+                Please open the <strong>OmniSync</strong> window in your OS taskbar/dock to continue.
+            </div>
+        </div>
+    );
+}
+
 export function AuthWizard({ onLogin }: { onLogin: () => void }) {
     const isBrowser = typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window);
+    if (isBrowser) return <BrowserNotice />;
+    return <AuthWizardImpl onLogin={onLogin} />;
+}
 
-    if (isBrowser) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto p-8 text-center">
-                <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6">
-                    <ShieldCheck className="w-10 h-10 text-red-500" />
-                </div>
-                <h1 className="text-2xl font-bold text-white mb-4">Desktop App Required</h1>
-                <p className="text-gray-400 mb-6 leading-relaxed">
-                    You are viewing the internal development server in a browser.
-                    This application cannot function here because it requires access to the system backend (Rust).
-                </p>
-                <div className="p-4 bg-gray-800 rounded-xl border border-gray-700 text-sm text-gray-300">
-                    Please open the <strong>Antigravity Drive</strong> window in your OS taskbar/dock to continue.
-                </div>
-            </div>
-        )
-    }
-
+function AuthWizardImpl({ onLogin }: { onLogin: () => void }) {
     const [step, setStep] = useState<Step>("setup");
     const [loading, setLoading] = useState(false);
 
@@ -136,7 +140,7 @@ export function AuthWizard({ onLogin }: { onLogin: () => void }) {
             if (msg.includes("FLOOD_WAIT_")) {
                 const parts = msg.split("FLOOD_WAIT_");
                 if (parts[1]) {
-                    const seconds = parseInt(parts[1]);
+                    const seconds = parseInt(parts[1], 10);
                     if (!isNaN(seconds)) {
                         setFloodWait(seconds);
                         return;
@@ -200,7 +204,7 @@ export function AuthWizard({ onLogin }: { onLogin: () => void }) {
                     <div className="w-20 h-20 mb-6 mx-auto flex items-center justify-center filter drop-shadow-lg">
                         <img src="/logo.svg" alt="Logo" className="w-full h-full" />
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">Antigravity Drive</h1>
+                    <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">OmniSync</h1>
                     <p className="text-sm text-white/60 font-medium">Self-Hosted Secure Storage</p>
                 </div>
 
@@ -475,7 +479,7 @@ export function AuthWizard({ onLogin }: { onLogin: () => void }) {
                             <div className="space-y-6 text-telegram-text">
                                 <div className="p-4 bg-telegram-primary/10 border border-telegram-primary/20 rounded-xl">
                                     <p className="text-sm text-telegram-subtext">
-                                        <strong className="text-telegram-primary">Antigravity Drive</strong> uses your Telegram account as secure cloud storage. You'll need a Telegram account and API credentials to get started.
+                                        <strong className="text-telegram-primary">OmniSync</strong> uses your Telegram account as secure cloud storage. You'll need a Telegram account and API credentials to get started.
                                     </p>
                                 </div>
 
@@ -556,7 +560,7 @@ export function AuthWizard({ onLogin }: { onLogin: () => void }) {
 
                             <div className="space-y-4 text-center">
                                 <p className="text-sm text-telegram-subtext mb-6">
-                                    If you find Antigravity Drive useful, consider supporting its development!
+                                    If you find OmniSync useful, consider supporting its development!
                                 </p>
 
                                 <div className="space-y-4">

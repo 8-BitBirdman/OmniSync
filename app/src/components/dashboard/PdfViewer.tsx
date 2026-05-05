@@ -21,7 +21,7 @@ interface PdfViewerProps {
 }
 
 export function PdfViewer({ file, onClose, onNext, onPrev, currentIndex, totalItems, activeFolderId }: PdfViewerProps) {
-    const [streamToken, setStreamToken] = useState<string | null>(null);
+    const [streamInfo, setStreamInfo] = useState<{ token: string; baseUrl: string } | null>(null);
     const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
     const [numPages, setNumPages] = useState<number>(0);
     const [scale, setScale] = useState<number>(1.2);
@@ -30,17 +30,24 @@ export function PdfViewer({ file, onClose, onNext, onPrev, currentIndex, totalIt
     const containerRef = useRef<HTMLDivElement>(null);
     const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 
-    // Fetch stream token once
+    // Fetch stream info once
     useEffect(() => {
-        invoke<string>('cmd_get_stream_token').then(setStreamToken).catch((err) => {
-            console.error("Failed to get stream token:", err);
-            setError("Failed to initialize stream");
-        });
+        let cancelled = false;
+        invoke<{ token: string; base_url: string }>('cmd_get_stream_info')
+            .then((info) => {
+                if (cancelled) return;
+                setStreamInfo({ token: info.token, baseUrl: info.base_url });
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setError("Failed to initialize stream");
+            });
+        return () => { cancelled = true; };
     }, []);
 
     // Load PDF document when stream URL is ready or file changes
     useEffect(() => {
-        if (!streamToken) return;
+        if (!streamInfo) return;
 
         let cancelled = false;
         setLoading(true);
@@ -49,7 +56,7 @@ export function PdfViewer({ file, onClose, onNext, onPrev, currentIndex, totalIt
         setNumPages(0);
 
         const folderIdParam = activeFolderId !== null ? activeFolderId.toString() : 'home';
-        const streamUrl = `http://localhost:14200/stream/${folderIdParam}/${file.id}?token=${streamToken}`;
+        const streamUrl = `${streamInfo.baseUrl}/stream/${folderIdParam}/${file.id}?token=${streamInfo.token}`;
 
         const loadingTask = pdfjsLib.getDocument(streamUrl);
 
@@ -68,9 +75,8 @@ export function PdfViewer({ file, onClose, onNext, onPrev, currentIndex, totalIt
                 setNumPages(pdfDoc.numPages);
                 setLoading(false);
             },
-            (err) => {
+            (_err) => {
                 if (cancelled) return;
-                console.error("Error loading PDF:", err);
                 setError("Failed to load PDF document.");
                 setLoading(false);
             }
@@ -80,7 +86,7 @@ export function PdfViewer({ file, onClose, onNext, onPrev, currentIndex, totalIt
             cancelled = true;
             loadingTask.destroy();
         };
-    }, [streamToken, activeFolderId, file.id]);
+    }, [streamInfo, activeFolderId, file.id]);
 
     // Cleanup PDF document on unmount
     useEffect(() => {
@@ -278,7 +284,9 @@ function PdfPage({ pageNumber, pdf, scale }: { pageNumber: number; pdf: pdfjsLib
             if (!cancelled) {
                 setPage(loadedPage);
             }
-        }).catch(err => console.error(`Error loading page ${pageNumber}:`, err));
+        }).catch(() => {
+            // Page load failed; placeholder remains visible.
+        });
 
         return () => {
             cancelled = true;
@@ -314,10 +322,9 @@ function PdfPage({ pageNumber, pdf, scale }: { pageNumber: number; pdf: pdfjsLib
         renderTaskRef.current = renderTask;
 
         renderTask.promise.catch((err) => {
-            // RenderingCancelledException is expected during zoom — ignore it
-            if (err?.name !== 'RenderingCancelledException') {
-                console.error(`Render error on page ${pageNumber}:`, err);
-            }
+            // RenderingCancelledException is expected during zoom — ignore it.
+            // Other render errors are non-fatal: a blank page placeholder remains.
+            void err;
         });
 
         return () => {

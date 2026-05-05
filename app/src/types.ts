@@ -33,6 +33,8 @@ export interface DownloadItem {
     messageId: number;
     filename: string;
     folderId: number | null;
+    /** Optional pre-selected destination directory (skip per-item save dialog). */
+    dirPath?: string;
     status: 'pending' | 'downloading' | 'success' | 'error' | 'cancelled';
     error?: string;
     progress?: number; // 0-100

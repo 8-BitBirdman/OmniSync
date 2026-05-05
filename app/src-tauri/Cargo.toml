@@ -1,8 +1,8 @@
 [package]
-name = "app"
+name = "omnisync"
 version = "1.1.10"
-description = "A Tauri App"
-authors = ["you"]
+description = "OmniSync — Infinite Storage. Zero Friction."
+authors = ["Andi"]
 edition = "2021"
 
 
@@ -43,7 +43,7 @@ async-stream = "0.3"
 actix-rt = "2"
 tauri-plugin-process = "2.3.1"
 rand = "0.8"
-reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream", "rustls-tls"] }
 url = "2"
 urlencoding = "2"
 

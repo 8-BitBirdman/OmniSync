@@ -1,8 +1,11 @@
 {
-  "name": "antigravity-drive",
+  "name": "omnisync",
   "private": true,
-  "version": "1.1.8",
+  "version": "1.1.10",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

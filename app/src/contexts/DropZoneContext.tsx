@@ -11,7 +11,7 @@ interface DropZoneContextType {
     // Minimal interface - DOM events handle everything
 }
 
-const DropZoneContext = createContext<DropZoneContextType | null>({});
+const DropZoneContext = createContext<DropZoneContextType | null>(null);
 
 export function DropZoneProvider({ children }: { children: React.ReactNode }) {
     return (
