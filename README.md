@@ -6,6 +6,8 @@
   **Infinite Storage. Zero Friction.**<br>
   *A high-performance, real-time bridge between Google Drive and Telegram's unlimited cloud storage.*
 
+  > ⚠️ **Work in progress.** OmniSync is under active development. Expect breaking changes, rough edges, and unfinished features until the first stable release.
+
   [![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)](#)
   [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](#)
   [![Rust](https://img.shields.io/badge/Rust-1.70+-000000?logo=rust&logoColor=white)](#)
