@@ -1,146 +1,111 @@
-# Antigravity Drive 
+<div align="center">
+  <img src="app/src-tauri/icons/128x128.png" alt="OmniSync Logo" width="128" height="128" />
+  
+  # OmniSync
+  
+  **Infinite Storage. Zero Friction.**<br>
+  *A high-performance, real-time bridge between Google Drive and Telegram's unlimited cloud storage.*
 
-**Antigravity Drive** is an open-source, cross-platform desktop application that turns your Telegram account into an unlimited, secure cloud storage drive. Built with **Tauri**, **Rust**, and **React**.
+  [![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)](#)
+  [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](#)
+  [![Rust](https://img.shields.io/badge/Rust-1.70+-000000?logo=rust&logoColor=white)](#)
+  [![Telegram](https://img.shields.io/badge/Telegram-API-2CA5E0?logo=telegram&logoColor=white)](#)
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20MacOS%20%7C%20Linux-blue)
-
-
-![Auth Screen](screenshots/AuthScreen.png)
-
-##  What is Antigravity Drive?
-
-Antigravity Drive leverages the Telegram API to allow you to upload, organize, and manage files directly on Telegram's servers. It treats your "Saved Messages" and created Channels as folders, giving you a familiar file explorer interface for your Telegram cloud.
-
-###  Key Features
-
-*   **Unlimited Cloud Storage**: Utilizing Telegram's generous cloud infrastructure.
-*   **High Performance Grid**: Virtual scrolling handles folders with thousands of files instantly.
-*   **Auto-Updates**: Seamless updates for Windows, macOS, and Linux.
-*   **Media Streaming**: Stream video and audio files directly without downloading.
-*   **PDF Viewer:** Built-in PDF support with infinite scrolling for seamless document reading.
-*   **Drag & Drop**: Intuitive drag-and-drop upload and file management.
-*   **Thumbnail Previews**: Inline thumbnails for images and media files.
-*   **Folder Management**: Create "Folders" (private Telegram Channels) to organize content.
-*   **Privacy Focused**: API keys and data stay local. No third-party servers.
-*   **Cross-Platform**: Native apps for macOS (Intel/ARM), Windows, and Linux.
-
-##  Screenshots
-
-| Dashboard | File Preview |
-|-----------|--------------|
-| ![Dashboard](screenshots/DashboardWithFiles.png) | ![Preview](screenshots/ImagePreview.png) |
-
-| Grid View | Authentication |
-|-----------|----------------|
-| ![Dark Mode](screenshots/DarkModeGrid.png) | ![Login](screenshots/LoginScreen.png) |
-
-| Audio Playback | Video Playback |
-|----------------|----------------|
-| ![Audio Playback](screenshots/AudioPlayback.png) | ![Video Playback](screenshots/VideoPlayback.png) |
-
-| Auth Code Screen | Upload Example |
-|------------------|-------------|
-| ![Auth Code Screen](screenshots/AuthCodeScreen.png) | ![Upload Example](screenshots/UploadExample.png) |
-
-| Folder Creation | Folder List View |
-|-----------------|------------------|
-| ![Folder Creation](screenshots/FolderCreation.png) | ![Folder List View](screenshots/FolderListView.png) |
-
-##  Tech Stack
-
-*   **Frontend**: React, TypeScript, TailwindCSS, Framer Motion
-*   **Backend**: Rust (Tauri), Grammers (Telegram Client)
-*   **Build Tool**: Vite
-
-
-##  Getting Started
-
-### Prerequisites
-
-*   **Node.js (v18+)**: [Download here](https://nodejs.org/)
-*   **Rust (latest stable)**: Required to compile the Tauri backend. Install via [rustup](https://rustup.rs/):
-    *   **macOS/Linux:** `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-    *   **Windows:** Download and run `rustup-init.exe` from [rustup.rs](https://rustup.rs/)
-    *   *Verify installation:* run `rustc --version` and `cargo --version` in your terminal.
-*   **OS-Specific Build Tools for Tauri**: 
-    *   **macOS:** Xcode Command Line Tools (`xcode-select --install`).
-    *   **Linux (Ubuntu/Debian):** `sudo apt update && sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`
-    *   **Windows (CRITICAL):** You **must** install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). During installation, select the **"Desktop development with C++"** workload. Without this, you will get a `linker 'link.exe' not found` error.
-    *   **Windows (WebView2):** Windows 10/11 users usually have this pre-installed. If not, download the [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/#download-section).
-    *   *Reference:* See the official [Tauri v2 Prerequisites Guide](https://v2.tauri.app/start/prerequisites/) for detailed instructions.
-*   **Telegram API Credentials**: You need your own API ID and API Hash to communicate with Telegram's servers.
-    1. Log into [my.telegram.org](https://my.telegram.org).
-    2. Go to "API development tools" and create a new application to get your `api_id` and `api_hash`.
-
-> [!NOTE]  
-> **First-run Compile Time:** The initial build (`npm run tauri dev` or `npm run tauri build`) will download and compile over 300 Rust crates. This process can take **5 to 15 minutes** depending on your hardware. Subsequent builds will be much faster.
-
-> [!TIP]
-> **NPM Vulnerabilities:** You may see vulnerability warnings during `npm install`. These are usually related to build tools and dev dependencies. You can optionally run `npm audit fix`, but it is not strictly required to run the app.
-
-### Installation
-
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/caamer20/Telegram-Drive.git
-    cd Telegram-Drive
-    ```
-
-2.  **Install Dependencies**
-    ```bash
-    cd app
-    npm install
-    ```
-
-3.  **Run in Development Mode**
-    ```bash
-    npm run tauri dev
-    ```
-
-4.  **Build/Compile**
-    ```bash
-    npm run tauri build
-    ```
-
-##  Open Source & License
-
-This project is **Free and Open Source Software**. You are free to use, modify, and distribute it.
-
-Licensed under the **MIT License**.
+  <p align="center">
+    <a href="#features">✨ Features</a> •
+    <a href="#how-it-works">⚙️ How it Works</a> •
+    <a href="#installation">🚀 Installation</a> •
+    <a href="#configuration">🔧 Configuration</a>
+  </p>
+</div>
 
 ---
-*Disclaimer: This application is not affiliated with Telegram FZ-LLC. Use responsibly and in accordance with Telegram's Terms of Service.*
 
-If you're looking for a version of this app that's optimized for VPNs check out this repo:
-https://github.com/caamer20/Telegram-Drive-ForVPNs
+## 🌌 The Vision
+
+Cloud storage is expensive, restrictive, and fractured. **OmniSync** changes the paradigm by utilizing Telegram's unlimited "Saved Messages" feature as an infinitely scalable backend. 
+
+By acting as a real-time, cross-platform bridge, OmniSync watches your Google Drive and securely funnels your files into Telegram the moment they are created. **No middleman servers, no storage caps, no monthly fees.**
 
 <div align="center">
-  <!-- PayPal -->
-  <div style="margin: 15px 0;">
-    <a href="https://www.paypal.me/Caamer20">
-      <img src="https://raw.githubusercontent.com/stefan-niedermann/paypal-donate-button/master/paypal-donate-button.png" alt="Donate with PayPal" width="200">
-    </a>
-    <div style="font-size: 14px; margin-top: 8px;">paypal.me/Caamer20</div>
-  </div>
+  <img src="screenshots/DashboardWithFiles.png" alt="OmniSync Dashboard" width="800" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"/>
+</div>
 
-  <!-- Litecoin -->
-  <div style="margin: 15px 0;">
-    <a href="litecoin:ltc1q6wkr5ac4u0pxx4hx7xgwn0gsaku25ws0df73rp">
-      <img src="https://img.shields.io/badge/Donate-LTC-345D9D?style=for-the-badge&logo=litecoin&logoColor=white" alt="Donate LTC">
-    </a>
-    <div style="font-family: monospace; font-size: 13px; margin-top: 8px; word-break: break-all;">
-      ltc1q6wkr5ac4u0pxx4hx7xgwn0gsaku25ws0df73rp
-    </div>
-  </div>
+---
 
-  <!-- Bitcoin -->
-  <div style="margin: 15px 0;">
-    <a href="bitcoin:bc1q5pt7m2fk6w0dzsnf6vvd5k6nw5k44785286ujy">
-      <img src="https://img.shields.io/badge/Donate-BTC-F7931A?style=for-the-badge&logo=bitcoin&logoColor=white" alt="Donate BTC">
-    </a>
-    <div style="font-family: monospace; font-size: 13px; margin-top: 8px; word-break: break-all;">
-      bc1q5pt7m2fk6w0dzsnf6vvd5k6nw5k44785286ujy
-    </div>
-  </div>
+## ✨ Features
+
+- ♾️ **Infinite Telegram Storage:** Upload files of virtually any size (up to Telegram API limits) straight to your own private Telegram channel/Saved Messages.
+- ⚡ **Real-Time Google Drive Sync:** Polls the Google Drive Change Feed API every 10 seconds. Drop a file in Google Drive, and watch it instantly appear in OmniSync.
+- 🔒 **Zero-Knowledge Architecture:** Everything runs completely locally on your machine via a lightweight Rust backend. Your OAuth tokens and Telegram sessions never leave your device.
+- 🎨 **Premium Glassmorphic UI:** A beautifully designed React frontend with dynamic animations, dark mode, and an intuitive file explorer.
+- 🚀 **Blazing Fast I/O:** Powered by asynchronous Rust (`tokio`), allowing for multi-threaded, non-blocking file streaming directly from Google servers to Telegram.
+
+---
+
+## ⚙️ How it Works
+
+1. **The Google Connection:** You authorize the app using your own Google Cloud OAuth credentials. OmniSync establishes a secure connection to your Drive.
+2. **The Telegram Connection:** You log in to your Telegram account. OmniSync uses `grammers-client` (MTProto) to communicate directly with Telegram's core servers.
+3. **The Bridge:** A background `tokio` task listens for changes in Google Drive. When a new file is detected, it is streamed to a temporary cache, uploaded to Telegram, and immediately deleted from your local disk to save space.
+
+---
+
+## 🚀 Installation & Development
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18+)
+- [Rust](https://www.rust-lang.org/tools/install) (latest stable)
+- Telegram App (`api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org))
+- Google Cloud Project (for OAuth 2.0 Credentials)
+
+### Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/omnisync.git
+   cd omnisync/app
+   ```
+
+2. **Install frontend dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Run the development server:**
+   ```bash
+   npm run tauri dev
+   ```
+
+4. **Build for production:**
+   ```bash
+   npm run tauri build
+   ```
+
+---
+
+## 🔧 Configuration (Google Drive API)
+
+To enable the real-time sync, you must provide your own Google OAuth credentials:
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com).
+2. Create a new project and enable the **Google Drive API**.
+3. Navigate to **APIs & Services > Credentials**.
+4. Create an **OAuth Client ID** (Application Type: *Desktop App*).
+5. Add `http://127.0.0.1` as an authorized redirect URI.
+6. Copy the **Client ID** and **Client Secret** into the OmniSync connection wizard.
+
+---
+
+## 🛡️ Security & Privacy
+
+OmniSync is a local-first application. 
+- **No Telemetry:** We don't track your usage.
+- **Direct API Connections:** The app communicates *only* with `googleapis.com` and Telegram's official MTProto datacenters.
+- **Local Token Storage:** OAuth tokens and Telegram session data are encrypted and stored locally via `tauri-plugin-store`.
+
+---
+
+<div align="center">
+  <i>Built with ❤️ by Andi | 2026</i>
 </div>
