@@ -444,7 +444,7 @@ async fn run_sync_tick(app_handle: &AppHandle, state: &GDriveState) -> Result<()
         });
 
         // Actually sync the file
-        match sync_file_to_telegram(app_handle, &token, file).await {
+        match sync_file_to_telegram(app_handle, state, file).await {
             Ok(_) => {
                 let _ = app_handle.emit("gdrive-sync-event", SyncEvent {
                     event_type: "file_synced".to_string(),
@@ -485,14 +485,18 @@ async fn run_sync_tick(app_handle: &AppHandle, state: &GDriveState) -> Result<()
 use tauri::Manager;
 use crate::TelegramState;
 use grammers_client::InputMessage;
-use std::io::Write;
 
-async fn sync_file_to_telegram(app_handle: &AppHandle, gdrive_token: &str, file: &DriveChangeFile) -> Result<(), String> {
+async fn sync_file_to_telegram(app_handle: &AppHandle, gdrive_state: &GDriveState, file: &DriveChangeFile) -> Result<(), String> {
+    use tokio::io::AsyncWriteExt;
+
     // 1. Download from Google Drive
+    // Fetch a fresh token for EACH file in case a previous file took hours to upload.
+    let gdrive_token = get_valid_token(gdrive_state).await?;
+    
     let http = reqwest::Client::new();
     let download_url = format!("https://www.googleapis.com/drive/v3/files/{}?alt=media", file.id);
     let mut resp = http.get(&download_url)
-        .bearer_auth(gdrive_token)
+        .bearer_auth(&gdrive_token)
         .send()
         .await
         .map_err(|e| format!("Download request failed: {}", e))?;
@@ -507,9 +511,10 @@ async fn sync_file_to_telegram(app_handle: &AppHandle, gdrive_token: &str, file:
     let temp_path = temp_dir.join(format!("gdrive_sync_{}_{}", file.id, safe_name));
     
     {
-        let mut temp_file = std::fs::File::create(&temp_path).map_err(|e| e.to_string())?;
+        // FIX: Use tokio::fs::File to prevent blocking the async executor
+        let mut temp_file = tokio::fs::File::create(&temp_path).await.map_err(|e| e.to_string())?;
         while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
-            temp_file.write_all(&chunk).map_err(|e| e.to_string())?;
+            temp_file.write_all(&chunk).await.map_err(|e| e.to_string())?;
         }
     }
 

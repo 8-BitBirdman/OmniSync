@@ -17,7 +17,7 @@ interface TopBarProps {
 }
 
 function SyncBadge() {
-    const { status, isConnected, recentEvents } = useGDriveSync();
+    const { status, recentEvents } = useGDriveSync();
 
     if (status.state === 'disconnected') return null;
 
