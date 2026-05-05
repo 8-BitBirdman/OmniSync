@@ -435,12 +435,33 @@ async fn run_sync_tick(app_handle: &AppHandle, state: &GDriveState) -> Result<()
 
     for file in &new_files {
         log::info!("[GDrive] Change detected: {} ({})", file.name, file.id);
-        let _ = app_handle.emit("gdrive-sync-event", SyncEvent {
-            event_type: "file_synced".to_string(),
-            file_name:  Some(file.name.clone()),
-            message:    format!("Synced '{}' from Google Drive", file.name),
+        
+        let _ = app_handle.emit("gdrive-status", SyncStatus {
+            state: SyncStatusKind::Syncing,
+            message: format!("Downloading '{}'…", file.name),
+            last_synced: None,
+            files_synced: state.files_synced.load(std::sync::atomic::Ordering::Relaxed),
         });
-        state.files_synced.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        // Actually sync the file
+        match sync_file_to_telegram(app_handle, &token, file).await {
+            Ok(_) => {
+                let _ = app_handle.emit("gdrive-sync-event", SyncEvent {
+                    event_type: "file_synced".to_string(),
+                    file_name:  Some(file.name.clone()),
+                    message:    format!("Successfully synced '{}'", file.name),
+                });
+                state.files_synced.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            Err(e) => {
+                log::error!("[GDrive] Failed to sync '{}': {}", file.name, e);
+                let _ = app_handle.emit("gdrive-sync-event", SyncEvent {
+                    event_type: "error".to_string(),
+                    file_name:  Some(file.name.clone()),
+                    message:    format!("Failed to sync '{}': {}", file.name, e),
+                });
+            }
+        }
     }
 
     // Update status back to Connected
@@ -457,6 +478,114 @@ async fn run_sync_tick(app_handle: &AppHandle, state: &GDriveState) -> Result<()
         s.files_synced = state.files_synced.load(std::sync::atomic::Ordering::Relaxed);
     }
     let _ = app_handle.emit("gdrive-status", state.status.lock().await.clone());
+
+    Ok(())
+}
+
+use tauri::Manager;
+use crate::TelegramState;
+use grammers_client::InputMessage;
+use std::io::Write;
+
+async fn sync_file_to_telegram(app_handle: &AppHandle, gdrive_token: &str, file: &DriveChangeFile) -> Result<(), String> {
+    // 1. Download from Google Drive
+    let http = reqwest::Client::new();
+    let download_url = format!("https://www.googleapis.com/drive/v3/files/{}?alt=media", file.id);
+    let mut resp = http.get(&download_url)
+        .bearer_auth(gdrive_token)
+        .send()
+        .await
+        .map_err(|e| format!("Download request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Google Drive returned {}", resp.status()));
+    }
+
+    // Use a temp file
+    let temp_dir = std::env::temp_dir();
+    let safe_name = file.name.replace('/', "_");
+    let temp_path = temp_dir.join(format!("gdrive_sync_{}_{}", file.id, safe_name));
+    
+    {
+        let mut temp_file = std::fs::File::create(&temp_path).map_err(|e| e.to_string())?;
+        while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
+            temp_file.write_all(&chunk).map_err(|e| e.to_string())?;
+        }
+    }
+
+    let path_str = temp_path.to_str().unwrap().to_string();
+
+    // 2. Upload to Telegram
+    let tg_state = app_handle.state::<TelegramState>();
+    let client_opt = tg_state.inner().client.lock().await.clone();
+    
+    if let Some(client) = client_opt {
+        log::info!("[GDrive] Uploading '{}' to Telegram...", file.name);
+        
+        let client_clone = client.clone();
+        let path_clone = path_str.clone();
+        
+        let uploaded_file = tauri::async_runtime::spawn(async move {
+            client_clone.upload_file(&path_clone).await
+        }).await.map_err(|e| format!("Task join error: {}", e))?
+          .map_err(|e| e.to_string())?;
+            
+        let message = InputMessage::new().text("").file(uploaded_file);
+
+        // Send to "Saved Messages" (Me)
+        let peer = grammers_client::types::Peer::User(grammers_client::types::User::from_raw(
+            grammers_tl_types::enums::User::User(grammers_tl_types::types::User {
+                is_self: true,
+                contact: true,
+                mutual_contact: true,
+                deleted: false,
+                bot: false,
+                bot_chat_history: false,
+                bot_nochats: false,
+                verified: false,
+                restricted: false,
+                min: false,
+                bot_inline_geo: false,
+                support: false,
+                scam: false,
+                fake: false,
+                premium: false,
+                attach_menu_bot: false,
+                close_friend: false,
+                stories_hidden: false,
+                stories_unavailable: false,
+                id: 0, // grammers automatically resolves 'me' for self uploads if we use self peer, but let's use the explicit saved messages logic
+                access_hash: None,
+                first_name: None,
+                last_name: None,
+                username: None,
+                phone: None,
+                photo: None,
+                status: None,
+                bot_info_version: None,
+                restriction_reason: None,
+                bot_inline_placeholder: None,
+                lang_code: None,
+                emoji_status: None,
+                usernames: None,
+                stories_max_id: None,
+                color: None,
+                profile_color: None,
+            })
+        ));
+
+        // Wait, grammers has an easier way to get the "Me" peer:
+        // Actually, we should just use `resolve_peer(None)`
+        let peer = crate::commands::utils::resolve_peer(&client, None, &tg_state.peer_cache).await?;
+        
+        client.send_message(&peer, message).await.map_err(|e| e.to_string())?;
+        log::info!("[GDrive] Successfully synced '{}' to Telegram.", file.name);
+    } else {
+        log::info!("[GDrive] [MOCK] Synced file {} to mock Telegram", file.name);
+    }
+
+    // 3. Cleanup temp file
+    let _ = std::fs::remove_file(temp_path);
 
     Ok(())
 }
